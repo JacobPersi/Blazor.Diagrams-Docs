@@ -1,60 +1,177 @@
-# Blazor Diagrams Documentation
+# Blazor Diagrams Quick Reference
 
-Welcome to the Blazor Diagrams documentation! This guide will help you find the information you need based on what you're trying to accomplish.
+## Basic Setup
 
-## 🚀 Getting Started
-- [Installation](getting-started/installation.md) - Set up Blazor Diagrams in your project
-- [Creating Your First Diagram](getting-started/diagram-creation.md) - Basic setup and initialization
-- [Displaying the Diagram](getting-started/display.md) - Render your diagram in the UI
+```csharp
+// Add services
+builder.Services.AddBlazorDiagram();
 
-## 📊 Core Concepts
+// Initialize diagram
+private BlazorDiagram Diagram { get; set; } = new();
 
-### Diagram Basics
-- [Diagram Overview](diagram/overview.md) - Core concepts and basic usage
-- [Behaviors](diagram/behaviors.md) - Configure how users can interact with the diagram
-- [Options](diagram/options.md) - Customize diagram settings and behavior
-- [Keyboard Shortcuts](diagram/keyboard-shortcuts.md) - Available keyboard interactions
-- [API Reference](diagram/api.md) - Complete API documentation
+// Basic display
+<CascadingValue Value="@Diagram" IsFixed="true">
+    <DiagramCanvas>
+        <!-- Optional Widgets -->
+    </DiagramCanvas>
+</CascadingValue>
+```
 
-### Working with Elements
+## Nodes
 
-#### Nodes
-- [Node Basics](nodes/overview.md) - Understanding and working with nodes
-- [HTML Nodes](nodes/customization.md) - Create custom HTML-based nodes
-- [SVG Nodes](nodes/svg.md) - Create SVG-based nodes
-- [SVG Node Customization](nodes/customization-svg.md) - Advanced SVG node customization
+```csharp
+// Add basic node
+var node = Diagram.Nodes.Add(new NodeModel(new Point(100, 100)));
 
-#### Ports
-- [Port Basics](ports/overview.md) - Understanding and working with ports
-- [Custom Ports](ports/customization.md) - Create custom ports
+// Add SVG node
+var svgNode = Diagram.Nodes.Add(new SvgNodeModel(new Point(100, 100)));
 
-#### Links
-- [Link Basics](links/overview.md) - Understanding and working with links
-- [Link Anchors](links/anchors.md) - Configure how links connect to elements
-- [Link Routing](links/routers.md) - Control how links are drawn between elements
-- [Path Generation](links/path-generators.md) - Customize link path appearance
-- [Link Markers](links/markers.md) - Add arrows and other markers to links
-- [Link Vertices](links/vertices.md) - Work with link points and segments
+// Custom HTML node
+public class CustomNode : NodeModel 
+{
+    public string Title { get; set; }
+    public CustomNode(Point position) : base(position) { }
+}
 
-#### Groups
-- [Group Basics](groups/overview.md) - Understanding and working with groups
-- [SVG Groups](groups/svg.md) - Create SVG-based groups
-- [HTML Group Customization](groups/customization.md) - Create custom HTML-based groups
-- [SVG Group Customization](groups/customization-svg.md) - Advanced SVG group customization
+// Register custom node component
+Diagram.RegisterComponent<CustomNode, CustomNodeWidget>();
+```
 
-## 🎨 UI and Interaction
+## Ports
 
-### Widgets
-- [Navigator Widget](widgets/navigator.md) - Add a minimap navigation
-- [Grid Widget](widgets/grid.md) - Add background grid
-- [Selection Box Widget](widgets/selection-box.md) - Enable box selection
+```csharp
+// Add port to node
+var port = node.AddPort(PortAlignment.Bottom);
 
-### Controls
-- [Control Basics](controls/overview.md) - Understanding element controls
-- [Custom Controls](controls/customization.md) - Create custom element controls
+// Custom port
+public class CustomPort : PortModel 
+{
+    public CustomPort(NodeModel parent, PortAlignment alignment) 
+        : base(parent, alignment) { }
+}
 
-## 🛠 Advanced Topics
+// Add custom port
+node.AddPort(new CustomPort(node, PortAlignment.Top));
+```
 
-### Layout and Positioning
-- [Element Ordering](diagram/ordering.md) - Control z-index and element stacking
-- [Position Providers](misc/position-providers.md) - Control element positioning
+## Links
+
+```csharp
+// Basic link between nodes
+var link = Diagram.Links.Add(new LinkModel(node1, node2));
+
+// Link between ports
+var link = Diagram.Links.Add(new LinkModel(port1, port2));
+
+// Configure link appearance
+link.SourceMarker = LinkMarker.Arrow;
+link.TargetMarker = LinkMarker.Circle;
+link.Router = new OrthogonalRouter();
+link.PathGenerator = new SmoothPathGenerator();
+```
+
+## Groups
+
+```csharp
+// Create group with nodes
+var group = Diagram.Groups.Add(new GroupModel(new[] { node1, node2 }));
+
+// SVG group
+var svgGroup = Diagram.Groups.Add(new SvgGroupModel(new[] { node1, node2 }));
+
+// Configure group factory
+Diagram.Options.Groups.Factory = (diagram, children) => new SvgGroupModel(children);
+```
+
+## Widgets
+
+```razor
+<DiagramCanvas>
+    <Widgets>
+        <!-- Navigator (minimap) -->
+        <NavigatorWidget 
+            Width="200" 
+            Height="120" 
+            Class="border border-black bg-white absolute" 
+            Style="bottom: 15px; right: 15px;" />
+
+        <!-- Grid -->
+        <GridWidget 
+            Size="30" 
+            Mode="GridMode.Line" 
+            BackgroundColor="white" />
+
+        <!-- Selection Box -->
+        <SelectionBoxWidget />
+    </Widgets>
+</DiagramCanvas>
+```
+
+## Controls
+
+```csharp
+// Add controls to model
+var controls = Diagram.Controls.AddFor(node);
+controls.Add(new BoundaryControl());
+controls.Add(new RemoveControl(0.5, 0));  // top center
+controls.Add(new ArrowHeadControl(source: true));
+
+// Show/Hide controls
+controls.Show();
+controls.Hide();
+```
+
+## Common Options
+
+```csharp
+Diagram.Options.Links.DefaultRouter = new OrthogonalRouter();
+Diagram.Options.Links.DefaultPathGenerator = new SmoothPathGenerator();
+Diagram.Options.Groups.Enabled = true;
+Diagram.Options.Constraints = DiagramConstraints.Default | DiagramConstraints.Snapable;
+
+// Layer ordering
+Diagram.Options.LinksLayerOrder = 1;
+Diagram.Options.NodesLayerOrder = 0;
+```
+
+## Event Handling
+
+```csharp
+// Node events
+node.Changed += (s, e) => Console.WriteLine("Node changed");
+node.Selected += (s, e) => Console.WriteLine("Node selected");
+
+// Link events
+link.SourceChanged += (s, e) => Console.WriteLine("Source changed");
+link.VerticesChanged += (s, e) => Console.WriteLine("Vertices changed");
+
+// Diagram events
+Diagram.SelectionChanged += (s, e) => Console.WriteLine("Selection changed");
+```
+
+## Position Providers
+
+```csharp
+// Bounds based (x,y between 0-1)
+new BoundsBasedPositionProvider(0.5, 0);     // top center
+new BoundsBasedPositionProvider(1, 0.5);     // right center
+new BoundsBasedPositionProvider(0.5, 1);     // bottom center
+new BoundsBasedPositionProvider(0, 0.5);     // left center
+
+// Shape angle (in degrees)
+new ShapeAnglePositionProvider(45);          // 45 degrees
+
+// Link path
+new LinkPathPositionProvider(0.5);           // middle of link
+```
+
+## Keyboard Shortcuts (Default)
+
+- `Delete`: Delete selected items
+- `Ctrl+C`: Copy selected items
+- `Ctrl+V`: Paste copied items
+- `Ctrl+Z`: Undo
+- `Ctrl+Y`: Redo
+- `Ctrl+G`: Group selected items
+- `Ctrl+Shift+G`: Ungroup selected items
+- `Ctrl+A`: Select all items
