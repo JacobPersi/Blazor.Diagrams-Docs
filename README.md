@@ -1,177 +1,289 @@
-# Blazor Diagrams Quick Reference
+# Blazor.Diagrams Usage Guide
 
-## Basic Setup
+## Setup
 
-```csharp
-// Add services
-builder.Services.AddBlazorDiagram();
-
-// Initialize diagram
-private BlazorDiagram Diagram { get; set; } = new();
-
-// Basic display
-<CascadingValue Value="@Diagram" IsFixed="true">
-    <DiagramCanvas>
-        <!-- Optional Widgets -->
-    </DiagramCanvas>
-</CascadingValue>
+1. Install NuGet package:
+```
+dotnet add package Z.Blazor.Diagrams
 ```
 
-## Nodes
+2. Add required CSS and JS to `index.html` or `_Host.cshtml`:
+```html
+<link href="_content/Z.Blazor.Diagrams/style.min.css" rel="stylesheet" />
+<script src="_content/Z.Blazor.Diagrams/script.min.js"></script>
+```
 
+3. Add using statements in `_Imports.razor`:
 ```csharp
-// Add basic node
-var node = Diagram.Nodes.Add(new NodeModel(new Point(100, 100)));
+@using Blazor.Diagrams
+@using Blazor.Diagrams.Components
+@using Blazor.Diagrams.Components.Widgets
+```
 
-// Add SVG node
-var svgNode = Diagram.Nodes.Add(new SvgNodeModel(new Point(100, 100)));
+## Core Components
 
-// Custom HTML node
-public class CustomNode : NodeModel 
+### Component Structure
+```razor
+@page "/diagram"
+@inherits DiagramComponent
+
+<div class="diagram-container" style="width: 100%; height: 100vh;">
+    <CascadingValue Value="Diagram">
+        <DiagramCanvas>
+            <Widgets>
+                <NavigatorWidget Width="200" Height="150" />
+                <SelectionBoxWidget />
+            </Widgets>
+        </DiagramCanvas>
+    </CascadingValue>
+</div>
+
+@code {
+    private BlazorDiagram Diagram { get; set; }
+
+    protected override void OnInitialized()
+    {
+        Diagram = new BlazorDiagram();
+        InitializeDiagram();
+    }
+
+    private void InitializeDiagram()
+    {
+        var node1 = new NodeModel(new Point(100, 100));
+        var node2 = new NodeModel(new Point(300, 300));
+        node1.AddPort(PortAlignment.Right);
+        node2.AddPort(PortAlignment.Left);
+        
+        Diagram.Nodes.Add(new[] { node1, node2 });
+        Diagram.Links.Add(new LinkModel(node1.GetPort(PortAlignment.Right), 
+                                      node2.GetPort(PortAlignment.Left)));
+    }
+}
+
+## Node Operations
+
+### Create Node
+```csharp
+var node = new NodeModel(new Point(x, y));
+diagram.Nodes.Add(node);
+```
+
+### Add Ports
+```csharp
+node.AddPort(PortAlignment.Top);
+node.AddPort(PortAlignment.Right);
+node.AddPort(PortAlignment.Bottom);
+node.AddPort(PortAlignment.Left);
+```
+
+### Create Links
+```csharp
+var link = new LinkModel(sourceNode.GetPort(PortAlignment.Right), targetNode.GetPort(PortAlignment.Left));
+diagram.Links.Add(link);
+```
+
+## Customization
+
+### Custom Node Implementation
+```csharp
+// CustomNode.cs
+public class CustomNode : NodeModel
 {
     public string Title { get; set; }
     public CustomNode(Point position) : base(position) { }
 }
 
-// Register custom node component
-Diagram.RegisterComponent<CustomNode, CustomNodeWidget>();
-```
+// CustomNodeWidget.razor
+@inherits NodeWidget<CustomNode>
 
-## Ports
+<div class="custom-node" style="background: white; border: 2px solid black; padding: 10px;">
+    <div>@Node.Title</div>
+    @foreach (var port in Node.Ports)
+    {
+        <PortWidget Port="port" />
+    }
+</div>
 
-```csharp
-// Add port to node
-var port = node.AddPort(PortAlignment.Bottom);
-
-// Custom port
-public class CustomPort : PortModel 
-{
-    public CustomPort(NodeModel parent, PortAlignment alignment) 
-        : base(parent, alignment) { }
+@code {
+    protected override void OnInitialized()
+    {
+        Node.AddPort(PortAlignment.Top);
+        Node.AddPort(PortAlignment.Bottom);
+    }
 }
 
-// Add custom port
-node.AddPort(new CustomPort(node, PortAlignment.Top));
+// Registration in parent component
+diagram.RegisterComponent<CustomNode, CustomNodeWidget>();
 ```
 
-## Links
-
+### Custom Link Implementation
 ```csharp
-// Basic link between nodes
-var link = Diagram.Links.Add(new LinkModel(node1, node2));
+// CustomLink.cs
+public class CustomLink : LinkModel
+{
+    public string LinkType { get; set; }
+    public CustomLink(IPort source, IPort target) : base(source, target) { }
+}
 
-// Link between ports
-var link = Diagram.Links.Add(new LinkModel(port1, port2));
+// CustomLinkWidget.razor
+@inherits LinkWidget<CustomLink>
 
-// Configure link appearance
-link.SourceMarker = LinkMarker.Arrow;
-link.TargetMarker = LinkMarker.Circle;
-link.Router = new OrthogonalRouter();
-link.PathGenerator = new SmoothPathGenerator();
+<g class="@Link.LinkType">
+    <path d="@Link.GetPathDefinition()" 
+          stroke="@(Link.Selected ? "red" : "black")" 
+          stroke-width="2" 
+          fill="none" />
+    @if (Link.Labels.Any())
+    {
+        @foreach (var label in Link.Labels)
+        {
+            <LinkLabelWidget Label="label" />
+        }
+    }
+</g>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Link.Router = new OrthogonalRouter();
+        Link.PathGenerator = new StraightPathGenerator();
+    }
+}
+
+// Registration in parent component
+diagram.RegisterComponent<CustomLink, CustomLinkWidget>();
 ```
 
-## Groups
-
-```csharp
-// Create group with nodes
-var group = Diagram.Groups.Add(new GroupModel(new[] { node1, node2 }));
-
-// SVG group
-var svgGroup = Diagram.Groups.Add(new SvgGroupModel(new[] { node1, node2 }));
-
-// Configure group factory
-Diagram.Options.Groups.Factory = (diagram, children) => new SvgGroupModel(children);
-```
-
-## Widgets
-
+### Link Usage
 ```razor
-<DiagramCanvas>
-    <Widgets>
-        <!-- Navigator (minimap) -->
-        <NavigatorWidget 
-            Width="200" 
-            Height="120" 
-            Class="border border-black bg-white absolute" 
-            Style="bottom: 15px; right: 15px;" />
-
-        <!-- Grid -->
-        <GridWidget 
-            Size="30" 
-            Mode="GridMode.Line" 
-            BackgroundColor="white" />
-
-        <!-- Selection Box -->
-        <SelectionBoxWidget />
-    </Widgets>
-</DiagramCanvas>
+@code {
+    private void CreateCustomLink(IPort source, IPort target)
+    {
+        var link = new CustomLink(source, target)
+        {
+            LinkType = "data-flow",
+            SourceMarker = LinkMarker.Arrow,
+            TargetMarker = LinkMarker.Arrow
+        };
+        link.Labels.Add(new LinkLabelModel("Data"));
+        Diagram.Links.Add(link);
+    }
+}
 ```
 
-## Controls
+## Configuration Options
 
+### Diagram Options
 ```csharp
-// Add controls to model
-var controls = Diagram.Controls.AddFor(node);
-controls.Add(new BoundaryControl());
-controls.Add(new RemoveControl(0.5, 0));  // top center
-controls.Add(new ArrowHeadControl(source: true));
-
-// Show/Hide controls
-controls.Show();
-controls.Hide();
+diagram.Options.AllowPanning = true;
+diagram.Options.Zoom.Enabled = true;
+diagram.Options.Virtualization.Enabled = true;
+diagram.Options.GridSnapEnabled = true;
+diagram.Options.GridSize = 20;
 ```
 
-## Common Options
+### Event Handling
+```razor
+@code {
+    protected override void OnInitialized()
+    {
+        Diagram = new BlazorDiagram();
+        
+        Diagram.SelectionChanged += OnSelectionChanged;
+        Diagram.NodeAdded += OnNodeAdded;
+        Diagram.LinkAdded += OnLinkAdded;
+        Diagram.PointerDown += OnPointerDown;
+    }
 
+    private void OnSelectionChanged(SelectionChangedEventArgs args)
+    {
+        SelectedNodes = args.Selected.OfType<NodeModel>().ToList();
+        StateHasChanged();
+    }
+
+    private void OnNodeAdded(NodeModel node)
+    {
+        node.Changed += (s, e) => 
+        {
+            // Handle node property changes
+            StateHasChanged();
+        };
+    }
+
+    private void OnLinkAdded(LinkModel link)
+    {
+        // Validate link
+        if (!IsValidConnection(link.Source, link.Target))
+        {
+            Diagram.Links.Remove(link);
+            return;
+        }
+    }
+
+    private void OnPointerDown(Model model, PointerEventArgs args)
+    {
+        if (args.Button == 2) // Right click
+        {
+            ShowContextMenu(args.Position);
+        }
+    }
+
+    public void Dispose()
+    {
+        Diagram.SelectionChanged -= OnSelectionChanged;
+        Diagram.NodeAdded -= OnNodeAdded;
+        Diagram.LinkAdded -= OnLinkAdded;
+        Diagram.PointerDown -= OnPointerDown;
+    }
+}
+```
+
+## Diagram Services
+
+### Dependency Injection
+```razor
+@inject NavigationManager NavigationManager
+@inject IDialogService DialogService
+@inject IDiagramService DiagramService
+
+@code {
+    [Inject] private ISnackbar Snackbar { get; set; }
+    
+    private async Task SaveDiagram()
+    {
+        var json = DiagramService.Serialize(Diagram);
+        await LocalStorage.SetItemAsync("diagram", json);
+    }
+    
+    private async Task LoadDiagram()
+    {
+        var json = await LocalStorage.GetItemAsync<string>("diagram");
+        if (!string.IsNullOrEmpty(json))
+        {
+            Diagram = DiagramService.Deserialize(json);
+            StateHasChanged();
+        }
+    }
+}
+```
+
+## Key Interfaces
+
+### Model Interfaces
+- `ILinkable`: Implement for custom port functionality
+- `IPositionable`: Implement for objects that can be positioned on canvas
+- `IGroupable`: Implement for nodes that can be grouped
+
+### Component Interfaces
 ```csharp
-Diagram.Options.Links.DefaultRouter = new OrthogonalRouter();
-Diagram.Options.Links.DefaultPathGenerator = new SmoothPathGenerator();
-Diagram.Options.Groups.Enabled = true;
-Diagram.Options.Constraints = DiagramConstraints.Default | DiagramConstraints.Snapable;
+public interface INodeWidget<TNode> where TNode : NodeModel
+{
+    TNode Node { get; }
+    RenderFragment ChildContent { get; }
+}
 
-// Layer ordering
-Diagram.Options.LinksLayerOrder = 1;
-Diagram.Options.NodesLayerOrder = 0;
-```
-
-## Event Handling
-
-```csharp
-// Node events
-node.Changed += (s, e) => Console.WriteLine("Node changed");
-node.Selected += (s, e) => Console.WriteLine("Node selected");
-
-// Link events
-link.SourceChanged += (s, e) => Console.WriteLine("Source changed");
-link.VerticesChanged += (s, e) => Console.WriteLine("Vertices changed");
-
-// Diagram events
-Diagram.SelectionChanged += (s, e) => Console.WriteLine("Selection changed");
-```
-
-## Position Providers
-
-```csharp
-// Bounds based (x,y between 0-1)
-new BoundsBasedPositionProvider(0.5, 0);     // top center
-new BoundsBasedPositionProvider(1, 0.5);     // right center
-new BoundsBasedPositionProvider(0.5, 1);     // bottom center
-new BoundsBasedPositionProvider(0, 0.5);     // left center
-
-// Shape angle (in degrees)
-new ShapeAnglePositionProvider(45);          // 45 degrees
-
-// Link path
-new LinkPathPositionProvider(0.5);           // middle of link
-```
-
-## Keyboard Shortcuts (Default)
-
-- `Delete`: Delete selected items
-- `Ctrl+C`: Copy selected items
-- `Ctrl+V`: Paste copied items
-- `Ctrl+Z`: Undo
-- `Ctrl+Y`: Redo
-- `Ctrl+G`: Group selected items
-- `Ctrl+Shift+G`: Ungroup selected items
-- `Ctrl+A`: Select all items
+public interface ILinkWidget<TLink> where TLink : LinkModel
+{
+    TLink Link { get; }
+    string PathDefinition { get; }
+}
